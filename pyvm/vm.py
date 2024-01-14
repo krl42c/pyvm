@@ -40,8 +40,10 @@ buffer.append(Chunk(Opcode.PUSH, Value(dtype=DType.INT, data=50)))
 import random
 #for i in range(100): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.INT, data=random.randint(0,500), backend="cpu_c"),  
 #                                        Value(dtype=DType.INT, data=random.randint(0,500), backend='cpu_c')))
-for i in range(10): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.INT, data=random.randint(0,500), backend="metal"),  
-                                         Value(dtype=DType.INT, data=random.randint(0,500), backend='metal')))
+import metalcompute as mc
+device = mc.Device()
+for i in range(100): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.INT, data=random.randint(0,500), backend="metal", metal_device=device),  
+                                         Value(dtype=DType.INT, data=random.randint(0,500), backend='metal', metal_device=device)))
 
 
 vm = VM(buffer=buffer)

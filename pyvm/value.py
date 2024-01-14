@@ -20,7 +20,11 @@ class OPS(Enum):
     DIV = 3
 
 class Value:
-    def __init__(self, dtype : DType, data, implicit_cast : bool = False, backend = 'python'):
+    def __init__(self, dtype : DType, 
+                 data : str | int | float, 
+                 implicit_cast : bool = False, 
+                 backend = 'python', 
+                 metal_device = None):
         self.dtype : DType = dtype
         self.implicit_cast = implicit_cast
         self.backend = backend
@@ -30,26 +34,12 @@ class Value:
             self.c_ops = CDLL('gen/cpu_ops.so')
         elif self.backend == 'metal':
             import metalcompute as mc
+            from kernels import metal_kernel
             from ctypes import c_int32, c_float
-            kernel = """
-            #include <metal_stdlib>;
-            using namespace metal;
-            kernel void add(const device float *A [[buffer(0)]],
-                                const device float *B [[buffer(1)]],
-                                device float *C [[buffer(2)]],
-                                uint id [[thread_position_in_grid]]) {
-                C[id] = A[id] + B[id]; 
-            }
-            kernel void addInt(const device int *A [[buffer(0)]],
-                                const device int *B [[buffer(1)]],
-                                device int *C [[buffer(2)]],
-                                uint id [[thread_position_in_grid]]) {
-                C[id] = A[id] + B[id]; 
-            }
-            """
-            self.device = mc.Device()
-            self.add_kernel = self.device.kernel(kernel).function("add")
-            self.add_kernel_int = self.device.kernel(kernel).function("addInt")
+            assert metal_device, "value:init: trying to run on metal backend without metal device"
+            self.device = metal_device
+            self.add_kernel = self.device.kernel(metal_kernel).function("add")
+            self.add_kernel_int = self.device.kernel(metal_kernel).function("addInt")
 
         if self.dtype == DType.INT: self.data = int(data) if self.backend == 'python' else c_int32(data)
         elif self.dtype == DType.FLOAT: self.data = float(data) if self.backend == 'python' else c_float(data)
@@ -87,7 +77,7 @@ class Value:
             input_c = self.device.buffer(4)
             c_view = memoryview(input_c).cast('i' if self.dtype == DType.INT else 'f')
             self.add_kernel_int(1, input_a, input_b, input_c) if self.dtype == DType.INT else self.add_kernel(1, input_a, input_b, input_c)
-            return Value(self.dtype, c_view[0])
+            return Value(self.dtype, c_view[0], metal_device=self.device, backend='metal')
         out = Value(self.dtype, self.data + right.data)
         return out
     
@@ -123,8 +113,11 @@ class Value:
 
     def __repr__(self):
         return repr(f'Value ({self.dtype} : {self.data})')
-    
 
+import metalcompute as mc 
+device = mc.Device()
+x = Value(DType.INT, 50, backend='metal', metal_device=device)
+y = Value(DType.INT, 50, backend='metal', metal_device=device)
 
-x = Value(DType.INT, 50, backend='metal')
-y = Value(DType.INT, 50, backend='metal')
+z = x + y
+print(z)
