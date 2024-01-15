@@ -42,8 +42,8 @@ import random
 #                                        Value(dtype=DType.INT, data=random.randint(0,500), backend='cpu_c')))
 import metalcompute as mc
 device = mc.Device()
-for i in range(100): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.INT, data=random.randint(0,500), backend="metal", metal_device=device),  
-                                         Value(dtype=DType.INT, data=random.randint(0,500), backend='metal', metal_device=device)))
+for i in range(10): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.INT, data=random.randint(0,500), backend="metal", metal_device=device, implicit_cast=True),  
+                                         Value(dtype=DType.INT, data=random.randint(0,500), backend='metal', metal_device=device, implicit_cast=True)))
 
 
 vm = VM(buffer=buffer)
