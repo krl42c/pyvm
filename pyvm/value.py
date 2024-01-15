@@ -42,8 +42,7 @@ class Value:
 
         if self.backend == 'cpu_c':
             from ctypes import CDLL, c_float, c_int32
-            self.c_ops = CDLL('gen/cpu_ops.so')
-
+            if not self.back: self.back : CBackend = CBackend()
         elif self.backend == 'metal':
             from ctypes import CDLL, c_float, c_int32
             if not self.back: self.back : MetalBackend = MetalBackend(metal_device)
@@ -78,36 +77,26 @@ class Value:
         self.dtype = target
 
     def __add__(self, right):
-        if isinstance(self.data, list):
-            # todo: arrays
-            return
         Value._assert_op(self, right)
-        if self.backend == 'cpu_c': return Value(self.dtype, self._get_c_op(OPS.ADD)(self.data, right.data))
-        elif self.backend == 'metal':
-            res = self.back.add(self.dtype, self, right)
-            if dbg: print(f'running metal kernel on {self.back.device}, result {res}')
-            return Value(self.dtype, res, backend='metal', back=self.back)
-        out = Value(self.dtype, self.data + right.data)
-        return out
+        if self.back: return Value(self.dtype, self.back.add(self.dtype, self, right), back=self.back, backend=self.backend) 
+        return Value(self.dtype, self.data + right.data)
     
     def __sub__(self, right):
         assert self.dtype != DType.STRING and right.dtype != DType.STRING, "value:__sub__: op not supported for string dtype"
         Value._assert_op(self, right)
-        if self.backend == 'cpu_c': return Value(self.dtype, self._get_c_op(OPS.SUB)(self.data, right.data))
-        out = Value(self.dtype, self.data - right.data)
-        return out
+        if self.back: return Value(self.dtype, self.back.sub(self.dtype, self, right), back=self.back, backend=self.backend) 
+        return Value(self.dtype, self.data - right.data)
  
     def __mul__(self, right):
         assert self.dtype != DType.STRING and right.dtype != DType.STRING, "value:__mul__: op not supported for string dtype"
         Value._assert_op(self, right)
-        if self.backend == 'cpu_c': return Value(self.dtype, self._get_c_op(OPS.MUL)(self.data, right.data))
-        out = Value(self.dtype, self.data * right.data)
-        return out
+        if self.back: return Value(self.dtype, self.back.mul(self.dtype, self, right), back=self.back, backend=self.backend) 
+        return Value(self.dtype, self.data * right.data)
 
     def __truediv__(self, right):
         assert self.dtype != DType.STRING and right.dtype != DType.STRING, "value:__truediv__: op not supported for string dtype"
         Value._assert_op(self, right)
-        if self.backend == 'cpu_c': return Value(self.dtype, self._get_c_op(OPS.DIV)(self.data, right.data))
+        if self.back: return Value(self.dtype, self.back.div(self.dtype, self, right), back=self.back, backend=self.backend) 
         out = Value(self.dtype, self.data / right.data)
 
     def __bytes__(self):
@@ -128,7 +117,6 @@ class Backend:
         self.backend = backend
 
 class MetalBackend(Backend):
-
     def __init__(self, device):
         super().__init__('metal')
 
@@ -165,13 +153,33 @@ class MetalBackend(Backend):
     def _call_kernel(self, dtype : DType, kernel, a, b, c) -> memoryview: 
         view = memoryview(c).cast('i' if dtype == DType.INT else 'f')
         kernel(1,a,b,c)
+        if dbg: print(f'running metal kernel on {self.device}, result {view[0]}')
         return view[0]
+
+class CBackend(Backend):
+    def __init__(self):
+        super().__init__('c')
+        from ctypes import CDLL, c_float, c_int32
+        self.c_ops = CDLL('gen/cpu_ops.so')
     
+    def _get_c_op(self, dtype, op): 
+        assert dtype != DType.STRING, "strings currently not supported for c backend"
+        if dbg: print(f'c_cpu_backend: running {op.name}')
+        if op == OPS.ADD: return self.c_ops.i_add if dtype == DType.INT else self.c_ops.f_add
+        elif op == OPS.SUB: return self.c_ops.i_sub if dtype == DType.INT else self.c_ops.f_sub
+        elif op == OPS.MUL: return self.c_ops.i_mul if dtype == DType.INT else self.c_ops.f_mul
+        elif op == OPS.DIV: return self.c_ops.i_div if dtype == DType.INT else self.c_ops.f_div
+
+    def add(self, dtype : DType, left : Value, right : Value): return self._get_c_op(dtype, OPS.ADD)(left.data, right.data)
+    def sub(self, dtype : DType, left : Value, right : Value): return self._get_c_op(dtype, OPS.SUB)(left.data, right.data)
+    def mul(self, dtype : DType, left : Value, right : Value): return self._get_c_op(dtype, OPS.MUL)(left.data, right.data)
+    def div(self, dtype : DType, left : Value, right : Value): return self._get_c_op(dtype, OPS.DIV)(left.data, right.data)
+
 
 import metalcompute as mc 
 device = mc.Device()
 x = Value(DType.INT, 50, backend='metal', metal_device=device)
 y = Value(DType.INT, 50, backend='metal', metal_device=device)
 
-z = x + y
+z = x - y
 print(z)
