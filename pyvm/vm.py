@@ -38,29 +38,29 @@ buffer : List[Chunk] = []
 buffer.append(Chunk(Opcode.PUSH, Value(dtype=DType.INT, data=50)))
 
 import random
-#for i in range(100): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.INT, data=random.randint(0,500), backend="cpu_c"),  
-#                                        Value(dtype=DType.INT, data=random.randint(0,500), backend='cpu_c')))
 import metalcompute as mc
+
+import cProfile
+runs = 10000
+print(f'running bench on {runs} runs')
 device = mc.Device()
-for i in range(5000): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.FLOAT, data=random.randint(0,500), backend="metal", metal_device=device, implicit_cast=True),  
+for i in range(runs): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.FLOAT, data=random.randint(0,500), backend="metal", metal_device=device, implicit_cast=True),  
                                          Value(dtype=DType.FLOAT, data=random.randint(0,500), backend='metal', metal_device=device, implicit_cast=True)))
 
 vm = VM(buffer=buffer)
-import cProfile
+print('')
 print('metal:')
 cProfile.run('vm.run_buffer()')
-
-for i in range(5000): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.FLOAT, data=random.randint(0,500), backend="python", metal_device=device, implicit_cast=True),  
-                                         Value(dtype=DType.FLOAT, data=random.randint(0,500), backend='python', metal_device=device, implicit_cast=True)))
+buffer = []
+for i in range(runs): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.FLOAT, data=random.randint(0,500), backend="python", implicit_cast=True),  
+                                         Value(dtype=DType.FLOAT, data=random.randint(0,500), backend='python', implicit_cast=True)))
 vm = VM(buffer=buffer)
 print('python:')
-cProfile.run('vm.run_buffer()')
+#cProfile.run('vm.run_buffer()')
 
-for i in range(5000): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.FLOAT, data=random.randint(0,500), backend="cpu_c", metal_device=device, implicit_cast=True),  
+buffer = []
+for i in range(runs): buffer.append(Chunk(Opcode.ADD, Value(dtype=DType.FLOAT, data=random.randint(0,500), backend="cpu_c", implicit_cast=True),  
                                          Value(dtype=DType.FLOAT, data=random.randint(0,500), backend='cpu_c', metal_device=device, implicit_cast=True)))
 vm = VM(buffer=buffer)
 print('c:')
 cProfile.run('vm.run_buffer()')
-
-
-
