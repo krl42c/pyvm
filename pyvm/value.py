@@ -57,8 +57,6 @@ class Value:
         if lvalue.implicit_cast and rvalue.implicit_cast: 
             to_cast, no_cast = (lvalue, rvalue) if lvalue.dtype.value > rvalue.dtype.value else (rvalue, lvalue)
             to_cast._cast_to(no_cast.dtype)
-        if dbg: print("lvalue.type", lvalue.dtype)
-        if dbg: print("rvalue.type", rvalue.dtype)
         else: assert lvalue.dtype == rvalue.dtype, "value:assert_op: operands are not same dtype" 
     
     def _cast_to(self, target : DType):
