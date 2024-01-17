@@ -38,14 +38,11 @@ class Value:
     self.move_to(self.backend, metal_device)
 
   def move_to(self, new_backend, metal_device = None):
-    assert new_backend in AVAILABLE_BACKENDS, "backend is not supported"
     self.backend = new_backend
 
     if self.backend == 'cpu_c':
-      from ctypes import CDLL 
       if not self.back: self.back : CBackend = CBackend()
     elif self.backend == 'metal':
-      from ctypes import CDLL
       if not self.back: self.back : MetalBackend = MetalBackend(metal_device)
 
     if self.dtype == DType.INT: self.data = int(self.data) if self.backend == 'python' else c_int32(self.data)
