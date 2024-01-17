@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, List
 from array import array
+from ctypes import c_float, c_int32
 import os
 
 dbg = os.getenv('DEBUG') == '1'
@@ -41,10 +42,10 @@ class Value:
         self.backend = new_backend
 
         if self.backend == 'cpu_c':
-            from ctypes import CDLL, c_float, c_int32
+            from ctypes import CDLL 
             if not self.back: self.back : CBackend = CBackend()
         elif self.backend == 'metal':
-            from ctypes import CDLL, c_float, c_int32
+            from ctypes import CDLL
             if not self.back: self.back : MetalBackend = MetalBackend(metal_device)
 
         if self.dtype == DType.INT: self.data = int(self.data) if self.backend == 'python' else c_int32(self.data)
@@ -53,28 +54,27 @@ class Value:
 
     @staticmethod
     def _assert_op(lvalue, rvalue):
-        # FIXME: fix casting (assign priority)
-        if lvalue.implicit_cast: rvalue._cast_to(lvalue.dtype)
+        if lvalue.implicit_cast and rvalue.implicit_cast: 
+            to_cast, no_cast = (lvalue, rvalue) if lvalue.dtype.value > rvalue.dtype.value else (rvalue, lvalue)
+            to_cast._cast_to(no_cast.dtype)
+        if dbg: print("lvalue.type", lvalue.dtype)
+        if dbg: print("rvalue.type", rvalue.dtype)
         else: assert lvalue.dtype == rvalue.dtype, "value:assert_op: operands are not same dtype" 
     
-    def _get_c_op(self, op): 
-        assert self.backend == 'cpu_c', f"value::_get_c_op: trying to access c function without using c backend"
-        assert self.dtype != DType.STRING, "strings currently not supported for c backend"
-        if dbg: print(f'c_cpu_backend: running {op.name} on {self}')
-        if op == OPS.ADD: return self.c_ops.i_add if self.dtype == DType.INT else self.c_ops.f_add
-        elif op == OPS.SUB: return self.c_ops.i_sub if self.dtype == DType.INT else self.c_ops.f_sub
-        elif op == OPS.MUL: return self.c_ops.i_mul if self.dtype == DType.INT else self.c_ops.f_mul
-        elif op == OPS.DIV: return self.c_ops.i_div if self.dtype == DType.INT else self.c_ops.f_div
-
     def _cast_to(self, target : DType):
         if self.dtype == target: return
-        if self.dtype == DType.STRING:
-            if target == DType.INT or target == DType.FLOAT:
-                assert self.data.isdigit(), "value:_cast_to: non numeric only string cannot be casted"
-                self.data = int(self.data) if target == DType.INT else float(self.data)
-        if self.dtype == DType.INT or self.dtype == DType.FLOAT:
-            self.data = str(self.data)
-        self.dtype = target
+        if target == DType.FLOAT:
+            if self.dtype == DType.INT:
+                self.data = float(self.data) if self.back == 'python' else c_float(self.data)
+            elif self.dtype == DType.STRING:
+                assert self.data.isdigit(), "non casteable string"
+                self.data = float(self.data) if self.back == 'python' else c_float(self.data)
+        if target == DType.INT:
+            if self.dtype == DType.FLOAT:
+                self.data = int(self.data) if self.back == 'python' else c_int32(int(self.data.value))
+            elif self.dtype == DType.STRING:
+                assert self.data.isdigit(), "non casteable string"
+                self.data = int(self.data) if self.back == 'python' else c_int32(int(self.data.value))
 
     def __add__(self, right):
         Value._assert_op(self, right)
@@ -178,8 +178,8 @@ class CBackend(Backend):
 
 import metalcompute as mc 
 device = mc.Device()
-x = Value(DType.INT, 50, backend='metal', metal_device=device)
-y = Value(DType.INT, 50, backend='metal', metal_device=device)
+x = Value(DType.INT, 50, backend='metal', metal_device=device, implicit_cast=True)
+y = Value(DType.FLOAT, 50, backend='metal', metal_device=device, implicit_cast=True)
 
-z = x - y
+z = x + y
 print(z)
